@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アトリエ給与計算</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#f7f5f2; --surface:#fff; --border:#e0dbd4;
+    --accent:#c0714a; --text:#2a2420; --muted:#8a7f78;
+    --success:#4a7c59; --alt:#faf9f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);padding:24px 16px 60px;}
+  header{text-align:center;margin-bottom:28px;}
+  header h1{font-size:1.4rem;font-weight:700;letter-spacing:.08em;color:var(--accent);}
+  header p{font-size:.78rem;color:var(--muted);margin-top:4px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .card-title{font-size:.78rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .ym-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .ym-row label{font-size:.85rem;color:var(--muted);}
+  .ym-row select{font-family:'DM Mono',monospace;font-size:1rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--bg);color:var(--text);cursor:pointer;}
+  #genBtn{margin-left:auto;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:.85rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.05em;}
+  #genBtn:hover{opacity:.85;}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  thead th{background:var(--accent);color:#fff;padding:8px 6px;text-align:center;font-weight:500;white-space:nowrap;}
+  tbody tr:nth-child(even){background:var(--alt);}
+  tbody tr.weekend-row{background:#eef2f7;}
+  tbody tr.holiday-row{background:#fdf0eb;}
+  td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;}
+  .date-cell{font-family:'DM Mono',monospace;font-weight:500;font-size:.85rem;color:var(--muted);}
+  .dow-cell{font-weight:700;font-size:.85rem;}
+  .sat{color:#3a6fa8;} .sun{color:var(--accent);}
+  input[type="time"]{font-family:'DM Mono',monospace;font-size:.82rem;border:1px solid var(--border);border-radius:6px;padding:4px;width:88px;background:#fff;color:var(--text);text-align:center;}
+  input[type="time"]:focus{outline:none;border-color:var(--accent);}
+  select.ts{font-size:.8rem;border:1px solid var(--border);border-radius:6px;padding:4px;background:#fff;color:var(--text);}
+  input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
+  #calcBtn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-size:1rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.08em;margin-bottom:20px;}
+  #calcBtn:hover{opacity:.85;}
+  #resultCard{display:none;}
+  #resultText{font-family:'DM Mono',monospace;font-size:.78rem;white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;line-height:1.8;color:var(--text);}
+  #copyBtn{display:block;width:100%;margin-top:14px;background:var(--success);color:#fff;border:none;border-radius:10px;padding:12px;font-size:.9rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.06em;}
+  #copyBtn:hover{opacity:.85;}
+  #copyMsg{text-align:center;font-size:.78rem;color:var(--success);margin-top:8px;min-height:1.2em;}
+  .note{font-size:.72rem;color:var(--muted);margin-top:10px;line-height:1.6;}
+  .carry-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .carry-row label{font-size:.85rem;color:var(--muted);}
+  .carry-row input{font-family:"DM Mono",monospace;font-size:1rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;width:90px;background:var(--bg);color:var(--text);text-align:center;}
+  .carry-row input:focus{outline:none;border-color:var(--accent);}
+  .carry-row span{font-size:.8rem;color:var(--muted);}
+  .carryover-box{background:#fff8f5;border:1px solid #f0c8b0;border-radius:8px;padding:12px;margin-top:12px;font-size:.8rem;color:var(--accent);line-height:1.8;display:none;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧵 アトリエ給与計算</h1>
+  <p>勤務時間を入力 → 計算 → LINEへコピー</p>
+</header>
+
+<div class="card">
+  <div class="card-title">対象年月</div>
+  <div class="ym-row">
+    <label>年</label><select id="selYear"></select>
+    <label>月</label><select id="selMonth"></select>
+    <button id="genBtn">表を作成</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">前月繰り越し時間</div>
+  <div class="carry-row">
+    <label>繰り越し時間</label>
+    <input type="number" id="carryH" min="0" max="23" value="0" placeholder="時">
+    <span>時間</span>
+    <input type="number" id="carryM" min="0" max="59" step="5" value="0" placeholder="分">
+    <span>分</span>
+  </div>
+  <p class="note">※ 前月から繰り越した超過時間がある場合のみ入力してください。<br>※ ない場合は「0時間0分」のままにしてください。</p>
+</div>
+
+<div class="card" id="tableCard" style="display:none">
+  <div class="card-title">勤務入力</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>日付</th><th>曜</th><th>祝</th><th>開始</th><th>終了</th><th>交通</th></tr></thead>
+      <tbody id="workBody"></tbody>
+    </table>
+  </div>
+  <p class="note">※ 出勤しない日は開始・終了を空欄のままにしてください。<br>※ 祝日は「祝」チェックを入れてください（3/20等）。</p>
+</div>
+
+<button id="calcBtn" style="display:none">💴 給与を計算する</button>
+
+<div class="card" id="resultCard">
+  <div class="card-title">計算結果</div>
+  <div id="resultText"></div>
+  <button id="copyBtn">📋 LINEにコピー</button>
+  <div id="copyMsg"></div>
+</div>
+
+<script>
+const DOW=['日','月','火','水','木','金','土'];
+const today=new Date();
+const sy=document.getElementById('selYear');
+const sm=document.getElementById('selMonth');
+for(let y=today.getFullYear()-1;y<=today.getFullYear()+1;y++){
+  const o=document.createElement('option');
+  o.value=y;o.textContent=y+'年';
+  if(y===today.getFullYear())o.selected=true;
+  sy.appendChild(o);
+}
+for(let m=1;m<=12;m++){
+  const o=document.createElement('option');
+  o.value=m;o.textContent=m+'月';
+  if(m===today.getMonth()+1)o.selected=true;
+  sm.appendChild(o);
+}
+
+document.getElementById('genBtn').addEventListener('click',()=>{
+  const y=+sy.value,m=+sm.value;
+  const days=new Date(y,m,0).getDate();
+  const tbody=document.getElementById('workBody');
+  tbody.innerHTML='';
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m-1,d);
+    const dow=dt.getDay();
+    const isWe=dow===0||dow===6;
+    const tr=document.createElement('tr');
+    if(isWe)tr.classList.add('weekend-row');
+    const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+    const dc=dow===6?'sat':dow===0?'sun':'';
+    tr.innerHTML=`
+      <td class="date-cell">${mm}/${dd}</td>
+      <td class="dow-cell ${dc}">${DOW[dow]}</td>
+      <td><input type="checkbox" class="hol"></td>
+      <td><input type="time" class="ts" step="300"></td>
+      <td><input type="time" class="te" step="300"></td>
+      <td><select class="ts"><option value="">-</option><option value="車">車</option><option value="徒歩">徒歩</option></select></td>
+    `;
+    tbody.appendChild(tr);
+    tr.querySelector('.hol').addEventListener('change',function(){
+      tr.classList.toggle('holiday-row',this.checked);
+      if(this.checked)tr.classList.remove('weekend-row');
+      else if(isWe)tr.classList.add('weekend-row');
+    });
+  }
+  document.getElementById('tableCard').style.display='block';
+  document.getElementById('calcBtn').style.display='block';
+  document.getElementById('resultCard').style.display='none';
+});
+
+function pt(s){if(!s)return null;const[h,mi]=s.split(':').map(Number);return h*60+mi;}
+function hhmm(min){return`${Math.floor(min/60)}.${String(min%60).padStart(2,'0')}`;}
+
+document.getElementById('calcBtn').addEventListener('click',()=>{
+  const y=+sy.value,m=+sm.value;
+  const rows=document.getElementById('workBody').querySelectorAll('tr');
+  const LIMIT=350,HOURLY=1200;
+
+  // 前月繰り越し時間（分）
+  const carryH=parseInt(document.getElementById('carryH').value)||0;
+  const carryM=parseInt(document.getElementById('carryM').value)||0;
+  const carryMin=carryH*60+carryM;
+
+  let recs=[];
+  rows.forEach((tr,idx)=>{
+    const d=idx+1;
+    const dow=new Date(y,m-1,d).getDay();
+    const holiday=tr.querySelector('.hol').checked;
+    const inputs=tr.querySelectorAll('input[type="time"]');
+    const s=inputs[0].value,e=inputs[1].value;
+    const transport=tr.querySelectorAll('select')[0].value;
+    if(!s||!e)return;
+    const sm2=pt(s),em=pt(e);
+    if(em<=sm2)return;
+    const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+    recs.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday,transport,worked:em-sm2,orig:true});
+  });
+  if(!recs.length){alert('出勤日が入力されていません。');return;}
+
+  let ov=0;
+  let ovDetails=[];
+  recs.forEach(r=>{if(r.worked>LIMIT){const ex=r.worked-LIMIT;ovDetails.push({date:r.date,ds:r.ds,ex});ov+=ex;r.worked=LIMIT;}});
+
+  // 前月繰り越しを超過に加算
+  ov+=carryMin;
+
+  if(ov>0){
+    recs.filter(r=>[2,3,4,5].includes(r.dow)&&!r.holiday&&r.worked<LIMIT).forEach(r=>{
+      if(ov<=0)return;
+      const add=Math.min(LIMIT-r.worked,ov);
+      r.worked+=add;ov-=add;
+    });
+  }
+
+  // 新規勤務日への振替が必要な残り超過分
+  let newDayOv=ov; // 既存日で吸収できなかった分
+  let carryNextMonth=0;
+  let newRecs=[];
+
+  if(newDayOv>0){
+    // 1時間未満なら翌月繰り越し
+    if(newDayOv<60){
+      carryNextMonth=newDayOv;
+      newDayOv=0;
+    } else {
+      const wd=new Set(recs.map(r=>r.d));
+      const days=new Date(y,m,0).getDate();
+      let cands=[];
+      for(let d=1;d<=days;d++){
+        const dow=new Date(y,m-1,d).getDay();
+        const row=rows[d-1];
+        const isHol=row?row.querySelector('.hol').checked:false;
+        if([2,3,4,5].includes(dow)&&!wd.has(d)&&!isHol)cands.push(d);
+      }
+      const nD=Math.ceil(newDayOv/LIMIT);
+      const base=Math.floor((newDayOv/nD)/5)*5;
+      const ex5=Math.floor((newDayOv-base*nD)/5);
+      for(let i=0;i<nD&&i<cands.length;i++){
+        const d=cands[i];
+        const dow=new Date(y,m-1,d).getDay();
+        const alloc=base+(i<ex5?5:0);
+        const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+        newRecs.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
+      }
+      recs.push(...newRecs);
+    }
+  }
+
+  recs.sort((a,b)=>a.d-b.d);
+  let totMin=0,totTr=0,lines=[];
+  lines.push(`【${y}年${m}月 給与明細】`);
+  lines.push('');
+
+  // 前月繰り越し表示
+  if(carryMin>0){
+    lines.push(`▼ 前月繰り越し`);
+    lines.push(`  繰り越し時間: ${hhmm(carryMin)}`);
+    lines.push('');
+  }
+
+  // 超過勤務内訳
+  if(ovDetails.length>0){
+    lines.push('▼ 超過勤務内訳（上限5.50超過分）');
+    ovDetails.forEach(o=>{
+      lines.push(`  ${o.date}(${o.ds}) 超過 ${hhmm(o.ex)}`);
+    });
+    const ovTotal=ovDetails.reduce((s,o)=>s+o.ex,0);
+    lines.push(`  超過合計　: ${hhmm(ovTotal)}`);
+    if(carryMin>0) lines.push(`  前月繰越　: ${hhmm(carryMin)}`);
+    if(carryMin>0) lines.push(`  振替対象計: ${hhmm(ovTotal+carryMin)}`);
+    lines.push('');
+  }
+
+  lines.push('▼ 勤務内訳');
+  recs.forEach(r=>{
+    const fee=r.orig?(r.transport==='車'?200:100):100;
+    totMin+=r.worked;totTr+=fee;
+    const tag=r.orig?'':'【振替】';
+    lines.push(`${r.date}(${r.ds})${tag} ${hhmm(r.worked)} ${r.transport||'徒歩'} 交通${fee}円`);
+  });
+  const dec=totMin/60;
+  const base2=Math.round(dec*HOURLY);
+  const total=base2+totTr;
+  lines.push('');
+  lines.push('▼ 集計');
+  lines.push(`合計時間　: ${hhmm(totMin)}`);
+  lines.push(`10進換算　: ${dec.toFixed(4)}h`);
+  lines.push(`基本給　　: ¥${base2.toLocaleString()}`);
+  lines.push(`交通費　　: ¥${totTr.toLocaleString()}`);
+  lines.push('──────────');
+  lines.push(`支給総額　: ¥${total.toLocaleString()}`);
+
+  // 翌月繰り越し表示
+  if(carryNextMonth>0){
+    lines.push('');
+    lines.push(`⚠ 翌月繰り越し: ${hhmm(carryNextMonth)}`);
+    lines.push(`  （新規振替時間が1時間未満のため翌月へ繰り越し）`);
+  }
+
+  document.getElementById('resultText').textContent=lines.join('\n');
+  document.getElementById('resultCard').style.display='block';
+  document.getElementById('resultCard').scrollIntoView({behavior:'smooth'});
+});
+
+document.getElementById('copyBtn').addEventListener('click',()=>{
+  const text=document.getElementById('resultText').textContent;
+  const msg=document.getElementById('copyMsg');
+  navigator.clipboard.writeText(text).then(()=>{
+    msg.textContent='コピーしました！LINEに貼り付けてください ✓';
+    setTimeout(()=>msg.textContent='',3000);
+  }).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=text;document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');document.body.removeChild(ta);
+    msg.textContent='コピーしました！ ✓';
+    setTimeout(()=>msg.textContent='',3000);
+  });
+});
+</script>
+</body>
+</html>
