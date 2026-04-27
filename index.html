@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アトリエ給与計算</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+  :root {
+    --bg:#f7f5f2; --surface:#fff; --border:#e0dbd4;
+    --accent:#c0714a; --text:#2a2420; --muted:#8a7f78;
+    --success:#4a7c59; --alt:#faf9f7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);padding:24px 16px 60px;}
+  header{text-align:center;margin-bottom:28px;}
+  header h1{font-size:1.4rem;font-weight:700;letter-spacing:.08em;color:var(--accent);}
+  header p{font-size:.78rem;color:var(--muted);margin-top:4px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+  .card-title{font-size:.78rem;font-weight:700;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .ym-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .ym-row label{font-size:.85rem;color:var(--muted);}
+  .ym-row select{font-family:'DM Mono',monospace;font-size:1rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--bg);color:var(--text);cursor:pointer;}
+  #genBtn{margin-left:auto;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 20px;font-size:.85rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.05em;}
+  #genBtn:hover{opacity:.85;}
+  .table-wrap{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:.78rem;}
+  thead th{background:var(--accent);color:#fff;padding:6px 3px;text-align:center;font-weight:500;white-space:nowrap;font-size:.75rem;}
+  tbody tr:nth-child(even){background:var(--alt);}
+  tbody tr.weekend-row{background:#eef2f7;}
+  tbody tr.holiday-row{background:#fdf0eb;}
+  td{padding:4px 2px;text-align:center;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;}
+  .date-cell{font-family:'DM Mono',monospace;font-weight:500;font-size:.78rem;color:var(--muted);}
+  .dow-cell{font-weight:700;font-size:.78rem;}
+  .sat{color:#3a6fa8;} .sun{color:var(--accent);}
+  input.th,input.tm{font-family:'DM Mono',monospace;font-size:.8rem;border:1px solid var(--border);border-radius:4px;padding:2px 1px;width:28px;background:#fff;color:var(--text);text-align:center;-moz-appearance:textfield;}
+  input.th::-webkit-outer-spin-button,input.th::-webkit-inner-spin-button,input.tm::-webkit-outer-spin-button,input.tm::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+  input.th:focus,input.tm:focus{outline:none;border-color:var(--accent);}
+  .tsep{font-size:.75rem;color:var(--muted);margin:0;}
+  select.tr-sel{font-size:.72rem;border:1px solid var(--border);border-radius:4px;padding:2px 1px;background:#fff;color:var(--text);max-width:44px;}
+  input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;}
+  #calcBtn{display:block;width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:14px;font-size:1rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.08em;margin-bottom:20px;}
+  #calcBtn:hover{opacity:.85;}
+  #resultCard{display:none;}
+  #resultText{font-family:'DM Mono',monospace;font-size:.78rem;white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;line-height:1.8;color:var(--text);}
+  #copyBtn{display:block;width:100%;margin-top:14px;background:var(--success);color:#fff;border:none;border-radius:10px;padding:12px;font-size:.9rem;font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.06em;}
+  #copyBtn:hover{opacity:.85;}
+  #copyMsg{text-align:center;font-size:.78rem;color:var(--success);margin-top:8px;min-height:1.2em;}
+  .note{font-size:.72rem;color:var(--muted);margin-top:10px;line-height:1.6;}
+  .carry-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .carry-row label{font-size:.85rem;color:var(--muted);}
+  .carry-row input{font-family:"DM Mono",monospace;font-size:1rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;width:90px;background:var(--bg);color:var(--text);text-align:center;}
+  .carry-row input:focus{outline:none;border-color:var(--accent);}
+  .carry-row span{font-size:.8rem;color:var(--muted);}
+  .carryover-box{background:#fff8f5;border:1px solid #f0c8b0;border-radius:8px;padding:12px;margin-top:12px;font-size:.8rem;color:var(--accent);line-height:1.8;display:none;}
+  .rt-cell{font-size:.7rem;color:var(--muted);white-space:nowrap;}
+  .rt-over{color:var(--accent);font-weight:700;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧵 アトリエ給与計算</h1>
+  <p>勤務時間を入力 → 計算 → LINEへコピー</p>
+</header>
+
+<div class="card">
+  <div class="card-title">対象年月</div>
+  <div class="ym-row">
+    <label>年</label><select id="selYear"></select>
+    <label>月</label><select id="selMonth"></select>
+    <button id="genBtn">表を作成</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">前月繰り越し時間</div>
+  <div class="carry-row">
+    <label>繰り越し時間</label>
+    <input type="number" id="carryH" min="0" max="23" value="0" placeholder="時">
+    <span>時間</span>
+    <input type="number" id="carryM" min="0" max="59" step="5" value="0" placeholder="分">
+    <span>分</span>
+  </div>
+  <p class="note">※ 前月から繰り越した超過時間がある場合のみ入力してください。<br>※ ない場合は「0時間0分」のままにしてください。</p>
+</div>
+
+<div class="card">
+  <div class="card-title">給与設定</div>
+  <div class="carry-row">
+    <label>時給</label>
+    <input type="number" id="hourlyRate" min="0" step="10" value="1200" style="width:100px;">
+    <span>円</span>
+  </div>
+  <p class="note">※ デフォルトは1,200円です。変更した場合は自動保存されます。</p>
+</div>
+
+<div class="card" id="tableCard" style="display:none">
+  <div class="card-title">勤務入力</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>日付</th><th>曜</th><th>祝</th><th>開始</th><th>終了</th><th>交通</th><th>実働/超過</th></tr></thead>
+      <tbody id="workBody"></tbody>
+    </table>
+  </div>
+  <p class="note">※ 出勤しない日は開始・終了を空欄のままにしてください。<br>※ 祝日は「祝」チェックを入れてください（3/20等）。</p>
+</div>
+
+<button id="calcBtn" style="display:none">💴 給与を計算する</button>
+
+<div class="card" id="resultCard">
+  <div class="card-title">計算結果</div>
+  <div id="resultText"></div>
+  <button id="copyBtn">📋 LINEにコピー</button>
+  <div id="copyMsg"></div>
+</div>
+
+<script>
+const DOW=['日','月','火','水','木','金','土'];
+const today=new Date();
+const sy=document.getElementById('selYear');
+const sm=document.getElementById('selMonth');
+for(let y=today.getFullYear()-1;y<=today.getFullYear()+1;y++){
+  const o=document.createElement('option');
+  o.value=y;o.textContent=y+'年';
+  if(y===today.getFullYear())o.selected=true;
+  sy.appendChild(o);
+}
+for(let m=1;m<=12;m++){
+  const o=document.createElement('option');
+  o.value=m;o.textContent=m+'月';
+  if(m===today.getMonth()+1)o.selected=true;
+  sm.appendChild(o);
+}
+
+
+// 日本の祝日（2025〜2027年対応）
+const HOLIDAYS = new Set([
+  // 2025年
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24',
+  '2025-03-20','2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-05-06',
+  '2025-07-21','2025-08-11','2025-09-15','2025-09-23','2025-10-13',
+  '2025-11-03','2025-11-23','2025-11-24',
+  // 2026年
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-02-24',
+  '2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06',
+  '2026-07-20','2026-08-10','2026-08-11','2026-09-21','2026-09-22','2026-10-12',
+  '2026-11-03','2026-11-04','2026-11-23','2026-12-23',
+  // 2027年
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21',
+  '2027-04-29','2027-05-03','2027-05-04','2027-05-05',
+  '2027-07-19','2027-08-11','2027-09-20','2027-09-23','2027-10-11',
+  '2027-11-03','2027-11-23',
+]);
+function isHoliday(y,m,d){
+  const key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  return HOLIDAYS.has(key);
+}
+
+document.getElementById('genBtn').addEventListener('click',()=>{
+  const y=+sy.value,m=+sm.value;
+  const days=new Date(y,m,0).getDate();
+  const tbody=document.getElementById('workBody');
+  tbody.innerHTML='';
+  for(let d=1;d<=days;d++){
+    const dt=new Date(y,m-1,d);
+    const dow=dt.getDay();
+    const isWe=dow===0||dow===6;
+    const tr=document.createElement('tr');
+    const isHol=isHoliday(y,m,d);
+    if(isWe)tr.classList.add('weekend-row');
+    if(isHol)tr.classList.add('holiday-row');
+    const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+    const dc=dow===6?'sat':dow===0?'sun':'';
+    tr.innerHTML=`
+      <td class="date-cell">${mm}/${dd}</td>
+      <td class="dow-cell ${dc}">${DOW[dow]}</td>
+      <td><input type="checkbox" class="hol" ${isHol?'checked':''}></td>
+      <td><input type="number" class="th sh" min="0" max="23" placeholder="--"><span class="tsep">:</span><input type="number" class="tm sm" min="0" max="59" step="5" placeholder="--"></td>
+      <td><input type="number" class="th eh" min="0" max="23" placeholder="--"><span class="tsep">:</span><input type="number" class="tm em" min="0" max="59" step="5" placeholder="--"></td>
+      <td><select class="tr-sel"><option value="">-</option><option value="車">車</option><option value="徒歩">徒歩</option></select></td>
+      <td class="rt-cell" id="rt-${mm}${dd}">-</td>
+    `;
+    tbody.appendChild(tr);
+    const holChk=tr.querySelector('.hol');
+    holChk.addEventListener('change',function(){
+      tr.classList.toggle('holiday-row',this.checked);
+      if(this.checked)tr.classList.remove('weekend-row');
+      else if(isWe)tr.classList.add('weekend-row');
+    });
+    // 初期状態の色を正しく設定
+    if(isHol){tr.classList.add('holiday-row');tr.classList.remove('weekend-row');}
+    // リアルタイム実働・超過表示
+    tr.querySelectorAll('input.th,input.tm').forEach(inp=>{
+      inp.addEventListener('input',()=>updateRTForRow(tr));
+      inp.addEventListener('change',()=>updateRTForRow(tr));
+    });
+
+    // 時間入力後に分へ自動カーソル移動（PC・スマホ両対応）
+    tr.querySelectorAll('input.th').forEach(hInput=>{
+      function tryMove(){
+        const v=hInput.value;
+        if(v===''||v===null)return;
+        const n=parseInt(v);
+        if(v.length>=2||(v.length===1&&n>=3)){
+          const next=hInput.closest('td').querySelector('input.tm');
+          if(next){
+            setTimeout(()=>{
+              next.value='';
+              next.focus();
+              next.click();
+            },50);
+          }
+        }
+      }
+      hInput.addEventListener('input',tryMove);
+      hInput.addEventListener('keyup',tryMove);
+    });
+  }
+  document.getElementById('tableCard').style.display='block';
+  document.getElementById('calcBtn').style.display='block';
+  document.getElementById('resultCard').style.display='none';
+
+  // 復元：localStorage にデータがあれば読み込む
+  restoreData(y, m);
+
+  // 1秒ごとに定期自動保存（スマホ対応）
+  if(window._autoSaveTimer)clearInterval(window._autoSaveTimer);
+  window._autoSaveTimer=setInterval(saveData, 1000);
+});
+
+const LIMIT_RT=350;
+function updateRTForRow(tr){
+  const shv=tr.querySelector('.sh')?tr.querySelector('.sh').value:'';
+  const smv=tr.querySelector('.sm')?tr.querySelector('.sm').value:'';
+  const ehv=tr.querySelector('.eh')?tr.querySelector('.eh').value:'';
+  const emv=tr.querySelector('.em')?tr.querySelector('.em').value:'';
+  const cell=tr.querySelector('.rt-cell');
+  if(!cell)return;
+  if(shv===''||smv===''||ehv===''||emv===''){cell.textContent='-';return;}
+  const s=parseInt(shv)*60+parseInt(smv);
+  const e=parseInt(ehv)*60+parseInt(emv);
+  if(isNaN(s)||isNaN(e)||e<=s){cell.textContent='-';return;}
+  const worked=e-s;
+  const wh=Math.floor(worked/60),wm=worked%60;
+  if(worked>LIMIT_RT){
+    const ov=worked-LIMIT_RT;
+    const oh=Math.floor(ov/60),om=ov%60;
+    cell.innerHTML=`${wh}.${String(wm).padStart(2,'0')}<br><span class="rt-over">+${oh}.${String(om).padStart(2,'0')}</span>`;
+  } else {
+    cell.textContent=`${wh}.${String(wm).padStart(2,'0')}`;
+  }
+}
+
+// 時給を復元
+(function(){
+  const hr=localStorage.getItem('atelier_hourlyRate');
+  if(hr){
+    const el=document.getElementById('hourlyRate');
+    if(el)el.value=hr;
+  }
+})();
+
+// ページ非表示・終了時に即保存（iOSのスワイプ対策）
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden') saveData();
+});
+window.addEventListener('pagehide', saveData);
+window.addEventListener('blur', saveData);
+
+function saveData(){
+  const y=+document.getElementById('selYear').value;
+  const m=+document.getElementById('selMonth').value;
+  const rows=document.getElementById('workBody').querySelectorAll('tr');
+  const data=[];
+  rows.forEach(tr=>{
+    const shEl=tr.querySelector('.sh'),smEl=tr.querySelector('.sm');
+    const ehEl=tr.querySelector('.eh'),emEl=tr.querySelector('.em');
+    const holEl=tr.querySelector('.hol');
+    const tsEl=tr.querySelector('.tr-sel');
+    data.push({
+      sh:shEl?shEl.value:'',
+      sm:smEl?smEl.value:'',
+      eh:ehEl?ehEl.value:'',
+      em:emEl?emEl.value:'',
+      hol:holEl?holEl.checked:false,
+      ts:tsEl?tsEl.value:''
+    });
+  });
+  localStorage.setItem(`atelier_${y}_${m}`, JSON.stringify(data));
+  // 時給も保存
+  const hr=document.getElementById('hourlyRate').value||'1200';
+  localStorage.setItem('atelier_hourlyRate', hr);
+  // 繰り越し時間も保存
+  const carryH=document.getElementById('carryH').value||'0';
+  const carryM=document.getElementById('carryM').value||'0';
+  localStorage.setItem(`atelier_carry_${y}_${m}`, JSON.stringify({carryH,carryM}));
+}
+
+function restoreData(y, m){
+  const saved=localStorage.getItem(`atelier_${y}_${m}`);
+  if(!saved)return;
+  try{
+    const data=JSON.parse(saved);
+    const rows=document.getElementById('workBody').querySelectorAll('tr');
+    rows.forEach((tr,i)=>{
+      if(!data[i])return;
+      const d=data[i];
+      const shEl=tr.querySelector('.sh'),smEl=tr.querySelector('.sm');
+      const ehEl=tr.querySelector('.eh'),emEl=tr.querySelector('.em');
+      const holEl=tr.querySelector('.hol');
+      const tsEl=tr.querySelector('.tr-sel');
+      if(shEl)shEl.value=d.sh||'';
+      if(smEl)smEl.value=d.sm||'';
+      if(ehEl)ehEl.value=d.eh||'';
+      if(emEl)emEl.value=d.em||'';
+      if(holEl&&d.hol!==undefined){
+        holEl.checked=d.hol;
+        if(d.hol){tr.classList.add('holiday-row');tr.classList.remove('weekend-row');}
+      }
+      if(tsEl)tsEl.value=d.ts||'';
+      // リアルタイム表示を直接更新（イベント発火しない）
+      updateRTForRow(tr);
+    });
+  }catch(e){console.log('restore error',e);}
+  // 繰り越し時間を復元
+  const carry=localStorage.getItem(`atelier_carry_${y}_${m}`);
+  if(carry){
+    try{
+      const cd=JSON.parse(carry);
+      document.getElementById('carryH').value=cd.carryH||'0';
+      document.getElementById('carryM').value=cd.carryM||'0';
+    }catch(e){}
+  }
+}
+
+function pt(s){if(!s)return null;const p=s.split(":");if(p.length!==2)return null;return parseInt(p[0])*60+parseInt(p[1]);}
+function hhmm(min){return`${Math.floor(min/60)}.${String(min%60).padStart(2,'0')}`;}
+
+document.getElementById('calcBtn').addEventListener('click',()=>{
+  const y=+sy.value,m=+sm.value;
+  const rows=document.getElementById('workBody').querySelectorAll('tr');
+  const LIMIT=350,HOURLY=parseInt(document.getElementById('hourlyRate').value)||1200;
+
+  // 前月繰り越し時間（分）
+  const carryH=parseInt(document.getElementById('carryH').value)||0;
+  const carryM=parseInt(document.getElementById('carryM').value)||0;
+  const carryMin=carryH*60+carryM;
+
+  let recs=[];
+  rows.forEach((tr,idx)=>{
+    const d=idx+1;
+    const dow=new Date(y,m-1,d).getDay();
+    const holiday=tr.querySelector('.hol').checked;
+    const shEl=tr.querySelector('.sh'),smEl=tr.querySelector('.sm');
+    const ehEl=tr.querySelector('.eh'),emEl=tr.querySelector('.em');
+    if(!shEl||!smEl||!ehEl||!emEl)return;
+    const shv=shEl.value,smv=smEl.value,ehv=ehEl.value,emv=emEl.value;
+    if(shv===''||smv===''||ehv===''||emv==='')return;
+    const sm2=parseInt(shv)*60+parseInt(smv);
+    const em=parseInt(ehv)*60+parseInt(emv);
+    if(isNaN(sm2)||isNaN(em)||em<=sm2)return;
+    const transport=tr.querySelector('.tr-sel').value;
+    const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+    recs.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday,transport,worked:em-sm2,orig:true});
+  });
+  if(!recs.length){alert('出勤日が入力されていません。');return;}
+
+  let ov=0;
+  let ovDetails=[];
+  recs.forEach(r=>{if(r.worked>LIMIT){const ex=r.worked-LIMIT;ovDetails.push({date:r.date,ds:r.ds,ex});ov+=ex;r.worked=LIMIT;}});
+
+  // 前月繰り越しを超過に加算
+  ov+=carryMin;
+
+  if(ov>0){
+    recs.filter(r=>r.orig&&r.worked<LIMIT).forEach(r=>{
+      if(ov<=0)return;
+      const add=Math.min(LIMIT-r.worked,ov);
+      r.transferred=(r.transferred||0)+add;
+      r.worked+=add;ov-=add;
+    });
+  }
+
+  // 新規勤務日への振替が必要な残り超過分
+  let newDayOv=ov; // 既存日で吸収できなかった分
+  let carryNextMonth=0;
+  let newRecs=[];
+
+  if(newDayOv>0){
+    // 1時間未満なら翌月繰り越し
+    if(newDayOv<60){
+      carryNextMonth=newDayOv;
+      newDayOv=0;
+    } else {
+      const wd=new Set(recs.map(r=>r.d));
+      const days=new Date(y,m,0).getDate();
+      let cands=[];
+      for(let d=1;d<=days;d++){
+        const dow=new Date(y,m-1,d).getDay();
+        const row=rows[d-1];
+        const isHol=row?row.querySelector('.hol').checked:false;
+        if([2,3,4,5].includes(dow)&&!wd.has(d)&&!isHol)cands.push(d);
+      }
+      const nD=Math.ceil(newDayOv/LIMIT);
+      const base=Math.floor((newDayOv/nD)/5)*5;
+      const ex5=Math.floor((newDayOv-base*nD)/5);
+      for(let i=0;i<nD&&i<cands.length;i++){
+        const d=cands[i];
+        const dow=new Date(y,m-1,d).getDay();
+        const alloc=base+(i<ex5?5:0);
+        const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+        newRecs.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
+      }
+      recs.push(...newRecs);
+    }
+  }
+
+  recs.sort((a,b)=>a.d-b.d);
+  let totMin=0,totTr=0,lines=[];
+  lines.push(`【${y}年${m}月 給与明細】`);
+  lines.push('');
+
+  // 前月繰り越し表示
+  if(carryMin>0){
+    lines.push(`▼ 前月繰り越し`);
+    lines.push(`  繰り越し時間: ${hhmm(carryMin)}`);
+    lines.push('');
+  }
+
+  // 超過勤務内訳
+  if(ovDetails.length>0){
+    lines.push('▼ 超過勤務内訳（上限5.50超過分）');
+    ovDetails.forEach(o=>{
+      lines.push(`  ${o.date}(${o.ds}) 超過 ${hhmm(o.ex)}`);
+    });
+    const ovTotal=ovDetails.reduce((s,o)=>s+o.ex,0);
+    lines.push(`  超過合計　: ${hhmm(ovTotal)}`);
+    if(carryMin>0) lines.push(`  前月繰越　: ${hhmm(carryMin)}`);
+    if(carryMin>0) lines.push(`  振替対象計: ${hhmm(ovTotal+carryMin)}`);
+    lines.push('');
+  }
+
+  lines.push('▼ 勤務内訳');
+  recs.forEach(r=>{
+    const fee=r.orig?(r.transport==='車'?200:100):100;
+    totMin+=r.worked;totTr+=fee;
+    if(!r.orig){
+      // 新規振替日
+      lines.push(`${r.date}(${r.ds})【振替】 ${hhmm(r.worked)} ${r.transport||'徒歩'} 交通${fee}円`);
+    } else if(r.transferred){
+      // 実出勤日で超過を受け取った日
+      const actual=r.worked-r.transferred;
+      const ovEx=ovDetails.find(o=>o.date===r.date);
+      const ovStr=ovEx?`(超過${hhmm(ovEx.ex)})`:'';
+      lines.push(`${r.date}(${r.ds}) 実働${hhmm(actual)}${ovStr} +超過受${hhmm(r.transferred)} 計${hhmm(r.worked)} ${r.transport} 交通${fee}円`);
+    } else {
+      // 通常実出勤日（超過あり／5.50以下）
+      const ovEx=ovDetails.find(o=>o.date===r.date);
+      if(ovEx){
+        lines.push(`${r.date}(${r.ds}) ${hhmm(r.worked)}(超過${hhmm(ovEx.ex)}) ${r.transport} 交通${fee}円`);
+      } else {
+        lines.push(`${r.date}(${r.ds}) 実働${hhmm(r.worked)} ${r.transport} 交通${fee}円`);
+      }
+    }
+  });
+  const dec=totMin/60;
+  const base2=Math.round(dec*HOURLY);
+  const total=base2+totTr;
+  lines.push('');
+  lines.push('▼ 集計');
+  lines.push(`合計時間　: ${hhmm(totMin)}`);
+  lines.push(`10進換算　: ${dec.toFixed(4)}h`);
+  lines.push(`基本給　　: ¥${base2.toLocaleString()}`);
+  lines.push(`交通費　　: ¥${totTr.toLocaleString()}`);
+  lines.push('──────────');
+  lines.push(`支給総額　: ¥${total.toLocaleString()}`);
+
+  // 翌月繰り越し表示
+  if(carryNextMonth>0){
+    lines.push('');
+    lines.push(`⚠ 翌月繰り越し: ${hhmm(carryNextMonth)}`);
+    lines.push(`  （新規振替時間が1時間未満のため翌月へ繰り越し）`);
+  }
+
+  document.getElementById('resultText').textContent=lines.join('\n');
+  document.getElementById('resultCard').style.display='block';
+  document.getElementById('resultCard').scrollIntoView({behavior:'smooth'});
+});
+
+document.getElementById('copyBtn').addEventListener('click',()=>{
+  const text=document.getElementById('resultText').textContent;
+  const msg=document.getElementById('copyMsg');
+  navigator.clipboard.writeText(text).then(()=>{
+    msg.textContent='コピーしました！LINEに貼り付けてください ✓';
+    setTimeout(()=>msg.textContent='',3000);
+  }).catch(()=>{
+    const ta=document.createElement('textarea');
+    ta.value=text;document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');document.body.removeChild(ta);
+    msg.textContent='コピーしました！ ✓';
+    setTimeout(()=>msg.textContent='',3000);
+  });
+});
+</script>
+</body>
+</html>
