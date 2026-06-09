@@ -546,7 +546,7 @@ document.getElementById('copyBtn').addEventListener('click',()=>{
 });
 
 // 管理者スプレッドシートへ送信
-const GAS_URL='https://script.google.com/macros/s/AKfycbymwonlTO8TY2uYEuEaIc8VHYZuDQp-JPmOJyeH7AVnXuoeisKvgEeZFOPToCKnwDmQ4g/exec';
+const GAS_URL='https://script.google.com/macros/s/AKfycbwxOf_lJ1irXTPIt7UyUroBg10yB2Rfk9BcnmprwALx2TgWw5ti45UEBz3CI4yrlRTaDQ/exec';
 
 document.getElementById('sendBtn').addEventListener('click',()=>{
   const name=document.getElementById('staffName').value.trim();
@@ -563,21 +563,84 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     return;
   }
 
-  // テキストから集計値を抽出
-  const ymMatch=text.match(/【(.+?)】/);
-  const yearMonth=ymMatch?ymMatch[1]:'';
+  // 集計値を抽出
+  const ymMatch=text.match(/【(\d+)年(\d+)月/);
+  const year=ymMatch?parseInt(ymMatch[1]):new Date().getFullYear();
+  const month=ymMatch?parseInt(ymMatch[2]):new Date().getMonth()+1;
   const totalMatch=text.match(/合計時間　: (.+)/);
   const baseMatch=text.match(/基本給　　: ¥([\d,]+)/);
   const trMatch=text.match(/交通費　　: ¥([\d,]+)/);
   const totalPayMatch=text.match(/支給総額　: ¥([\d,]+)/);
+  const hourlyRate=parseInt(document.getElementById('hourlyRate').value)||1200;
+
+  // 勤務記録を収集
+  const rows=document.getElementById('workBody').querySelectorAll('tr');
+  const records=[];
+  const holidays=[];
+  rows.forEach((tr,idx)=>{
+    const d=idx+1;
+    if(tr.querySelector('.hol').checked) holidays.push(d);
+    const shv=tr.querySelector('.sh').value;
+    const smv=tr.querySelector('.sm').value;
+    const ehv=tr.querySelector('.eh').value;
+    const emv=tr.querySelector('.em').value;
+    const transport=tr.querySelector('.tr-sel').value;
+    if(shv===''||smv===''||ehv===''||emv==='') return;
+    const sm2=parseInt(shv)*60+parseInt(smv);
+    const em=parseInt(ehv)*60+parseInt(emv);
+    if(isNaN(sm2)||isNaN(em)||em<=sm2) return;
+    const actual=em-sm2;
+    const worked=Math.min(actual,350);
+    const overtime=actual>350?actual-350:0;
+    records.push({
+      day:d,sh:parseInt(shv),sm:parseInt(smv),
+      eh:parseInt(ehv),em:parseInt(emv),
+      actual,worked,overtime,
+      transferred:0,
+      fee:transport==='車'?200:100,
+      transport,
+      type:'出勤'
+    });
+  });
+
+  // 振替情報を付加（recs配列から）
+  if(typeof recs!=='undefined'){
+    recs.forEach(r=>{
+      const rec=records.find(x=>x.day===r.d);
+      if(rec){
+        rec.transferred=r.transferred||0;
+        rec.worked=r.worked;
+        if(rec.transferred>0&&rec.overtime>0) rec.type='出勤+振替';
+        else if(rec.transferred>0) rec.type='出勤+振替';
+      }
+      if(!r.orig){
+        records.push({
+          day:r.d,sh:0,sm:0,eh:0,em:0,
+          actual:r.worked,worked:r.worked,overtime:0,
+          transferred:r.worked,fee:100,transport:'徒歩',type:'振替'
+        });
+      }
+    });
+  }
+
+  // 集計
+  const workDays=records.length;
+  const totalMinutes=records.reduce((s,r)=>s+r.worked,0);
+  const totalHours=Math.round(totalMinutes/60*10000)/10000;
+  const carDays=records.filter(r=>r.transport==='車'&&r.type!=='振替').length;
+  const walkDays=records.filter(r=>r.transport!=='車'||r.type==='振替').length;
+  const carFee=carDays*200;
+  const walkFee=walkDays*100;
+  const totalFee=carFee+walkFee;
 
   const payload={
-    name,
-    yearMonth,
-    totalTime:totalMatch?totalMatch[1]:'',
-    baseSalary:baseMatch?baseMatch[1]:'',
-    transport:trMatch?trMatch[1]:'',
-    total:totalPayMatch?totalPayMatch[1]:'',
+    name, year, month,
+    records,
+    holidays,
+    summary:{
+      workDays,totalHours,hourlyRate,
+      carDays,carFee,walkDays,walkFee,totalFee
+    },
     detail:text
   };
 
