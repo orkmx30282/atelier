@@ -648,22 +648,27 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
   sendMsg.textContent='送信中...';
   document.getElementById('sendBtn').disabled=true;
 
-  // GASへPOSTで送信
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', GAS_URL, true);
-  xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-  xhr.onload = function() {
+  // Googleフォーム経由で送信
+  const FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSearzqxMQrlBZ_WJFaWLZA_jKbS6l4Dt4dmS8tphhVSAwHMAQ/formResponse';
+  const formData=new FormData();
+  formData.append('entry.1473589320', payload.name);
+  formData.append('entry.1617417539', String(payload.year));
+  formData.append('entry.1704257632', String(payload.month));
+  formData.append('entry.1265874092', payload.detail);
+
+  fetch(FORM_URL, {
+    method:'POST',
+    mode:'no-cors',
+    body: formData
+  }).then(()=>{
     sendMsg.style.color='var(--success)';
     sendMsg.textContent='✓ 送信しました！';
     document.getElementById('sendBtn').disabled=false;
-  };
-  xhr.onerror = function() {
-    // no-corsでは常にerrorになるが実際は送信されている
-    sendMsg.style.color='var(--success)';
-    sendMsg.textContent='✓ 送信しました！';
+  }).catch(err=>{
+    sendMsg.style.color='var(--accent)';
+    sendMsg.textContent='送信に失敗しました。再度お試しください。';
     document.getElementById('sendBtn').disabled=false;
-  };
-  xhr.send('payload=' + encodeURIComponent(JSON.stringify(payload)));
+  });
 });
 
 // 氏名をlocalStorageに保存・復元
