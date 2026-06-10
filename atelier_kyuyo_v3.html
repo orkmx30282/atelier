@@ -662,10 +662,9 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     body: formData
   });
 
-  // ② GAS経由で勤務表シートを作成
-  const gasParams = new URLSearchParams();
-  // 勤務表用に軽量化したペイロード
-  const lightPayload = {
+  // ② Googleフォーム経由で勤務表データを送信
+  const KINMU_FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSdbH2FPa1NrGRaaWqjQIDnBBiPAR1Ua9B5eH2PpD853PIemZA/formResponse';
+  const kinmuData = {
     name: payload.name,
     year: payload.year,
     month: payload.month,
@@ -673,11 +672,13 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     holidays: payload.holidays,
     summary: payload.summary
   };
-  gasParams.append('payload', JSON.stringify(lightPayload));
+  const kinmuFormData = new FormData();
+  kinmuFormData.append('entry.1100089953', JSON.stringify(kinmuData));
 
-  fetch(GAS_URL + '?' + gasParams.toString(), {
-    method:'GET',
-    mode:'no-cors'
+  fetch(KINMU_FORM_URL, {
+    method:'POST',
+    mode:'no-cors',
+    body: kinmuFormData
   }).then(()=>{
     sendMsg.style.color='var(--success)';
     sendMsg.textContent='✓ 送信しました！';
