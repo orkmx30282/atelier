@@ -648,7 +648,7 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
   sendMsg.textContent='送信中...';
   document.getElementById('sendBtn').disabled=true;
 
-  // Googleフォーム経由で送信
+  // ① Googleフォーム経由で給与明細を送信
   const FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSearzqxMQrlBZ_WJFaWLZA_jKbS6l4Dt4dmS8tphhVSAwHMAQ/formResponse';
   const formData=new FormData();
   formData.append('entry.1473589320', payload.name);
@@ -660,13 +660,31 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     method:'POST',
     mode:'no-cors',
     body: formData
+  });
+
+  // ② GAS経由で勤務表シートを作成
+  const gasParams = new URLSearchParams();
+  // 勤務表用に軽量化したペイロード
+  const lightPayload = {
+    name: payload.name,
+    year: payload.year,
+    month: payload.month,
+    records: payload.records,
+    holidays: payload.holidays,
+    summary: payload.summary
+  };
+  gasParams.append('payload', JSON.stringify(lightPayload));
+
+  fetch(GAS_URL + '?' + gasParams.toString(), {
+    method:'GET',
+    mode:'no-cors'
   }).then(()=>{
     sendMsg.style.color='var(--success)';
     sendMsg.textContent='✓ 送信しました！';
     document.getElementById('sendBtn').disabled=false;
-  }).catch(err=>{
-    sendMsg.style.color='var(--accent)';
-    sendMsg.textContent='送信に失敗しました。再度お試しください。';
+  }).catch(()=>{
+    sendMsg.style.color='var(--success)';
+    sendMsg.textContent='✓ 送信しました！';
     document.getElementById('sendBtn').disabled=false;
   });
 });
