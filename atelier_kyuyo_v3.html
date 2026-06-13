@@ -569,60 +569,50 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
   const ymMatch=text.match(/【(\d+)年(\d+)月/);
   const year=ymMatch?parseInt(ymMatch[1]):new Date().getFullYear();
   const month=ymMatch?parseInt(ymMatch[2]):new Date().getMonth()+1;
-  const totalMatch=text.match(/合計時間　: (.+)/);
-  const baseMatch=text.match(/基本給　　: ¥([\d,]+)/);
-  const trMatch=text.match(/交通費　　: ¥([\d,]+)/);
-  const totalPayMatch=text.match(/支給総額　: ¥([\d,]+)/);
   const hourlyRate=parseInt(document.getElementById('hourlyRate').value)||1200;
 
-  // 勤務記録を収集
-  const rows=document.getElementById('workBody').querySelectorAll('tr');
-  const records=[];
+  // lastRecsから直接recordsを構築
+  if(!lastRecs||lastRecs.length===0){
+    sendMsg.style.color='var(--accent)';
+    sendMsg.textContent='先に給与を計算してください。';
+    return;
+  }
+
   const holidays=[];
-  rows.forEach((tr,idx)=>{
-    const d=idx+1;
-    if(tr.querySelector('.hol').checked) holidays.push(d);
-    const shv=tr.querySelector('.sh').value;
-    const smv=tr.querySelector('.sm').value;
-    const ehv=tr.querySelector('.eh').value;
-    const emv=tr.querySelector('.em').value;
-    const transport=tr.querySelector('.tr-sel').value;
-    if(shv===''||smv===''||ehv===''||emv==='') return;
-    const sm2=parseInt(shv)*60+parseInt(smv);
-    const em=parseInt(ehv)*60+parseInt(emv);
-    if(isNaN(sm2)||isNaN(em)||em<=sm2) return;
-    const actual=em-sm2;
-    const worked=Math.min(actual,350);
-    const overtime=actual>350?actual-350:0;
-    records.push({
-      day:d,sh:parseInt(shv),sm:parseInt(smv),
-      eh:parseInt(ehv),em:parseInt(emv),
-      actual,worked,overtime,
-      transferred:0,
-      fee:transport==='車'?200:100,
-      transport,
-      type:'出勤'
-    });
+  document.getElementById('workBody').querySelectorAll('tr').forEach((tr,idx)=>{
+    if(tr.querySelector('.hol').checked) holidays.push(idx+1);
   });
 
-  // 振替情報を付加（lastRecs配列から構築）
-  lastRecs.forEach(r=>{
-    const rec=records.find(x=>x.day===r.d);
-    if(rec){
-      rec.transferred=r.transferred||0;
-      rec.worked=r.worked;
-      if(rec.transferred>0&&rec.overtime>0) rec.type='出勤+振替';
-      else if(rec.transferred>0) rec.type='出勤+振替';
-    }
-    if(!r.orig){
-      // 振替日（新規）
-      const dt2=new Date(y,m-1,r.d);
-      records.push({
-        day:r.d,
-        sh:0,sm:0,eh:0,em:0,
-        actual:r.worked,worked:r.worked,overtime:0,
-        transferred:r.worked,fee:100,transport:'徒歩',type:'振替'
-      });
+  const records=lastRecs.map(r=>({
+    day:r.d,
+    sh:r.orig?(parseInt(r.date.split('/')[1])?0:0):0,
+    sm:0,eh:0,em:0,
+    actual:r.orig?r.worked:r.worked,
+    worked:r.worked,
+    overtime:r.orig&&r.worked>350?r.worked-350:0,
+    transferred:r.transferred||0,
+    fee:r.orig?(r.transport==='車'?200:100):100,
+    transport:r.transport||'徒歩',
+    type:r.orig?'出勤':'振替'
+  }));
+
+  // 時刻情報を補完
+  const workRows=document.getElementById('workBody').querySelectorAll('tr');
+  records.forEach(rec=>{
+    if(rec.day<=workRows.length){
+      const tr=workRows[rec.day-1];
+      const shv=tr.querySelector('.sh').value;
+      const smv=tr.querySelector('.sm').value;
+      const ehv=tr.querySelector('.eh').value;
+      const emv=tr.querySelector('.em').value;
+      if(shv!==''&&smv!==''){rec.sh=parseInt(shv);rec.sm=parseInt(smv);}
+      if(ehv!==''&&emv!==''){rec.eh=parseInt(ehv);rec.em=parseInt(emv);}
+      // 振替受入情報
+      const origRec=lastRecs.find(r=>r.d===rec.day&&r.orig);
+      if(origRec){
+        rec.transferred=origRec.transferred||0;
+        if(rec.transferred>0) rec.type='出勤+振替';
+      }
     }
   });
 
