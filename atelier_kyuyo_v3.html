@@ -583,37 +583,36 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     if(tr.querySelector('.hol').checked) holidays.push(idx+1);
   });
 
-  const records=lastRecs.map(r=>({
-    day:r.d,
-    sh:r.orig?(parseInt(r.date.split('/')[1])?0:0):0,
-    sm:0,eh:0,em:0,
-    actual:r.orig?r.worked:r.worked,
-    worked:r.worked,
-    overtime:r.orig&&r.worked>350?r.worked-350:0,
-    transferred:r.transferred||0,
-    fee:r.orig?(r.transport==='車'?200:100):100,
-    transport:r.transport||'徒歩',
-    type:r.orig?'出勤':'振替'
-  }));
-
-  // 時刻情報を補完
   const workRows=document.getElementById('workBody').querySelectorAll('tr');
-  records.forEach(rec=>{
-    if(rec.day<=workRows.length){
-      const tr=workRows[rec.day-1];
+  const records=[];
+  lastRecs.forEach(r=>{
+    const d=r.d;
+    let sh=0,sm=0,eh=0,em=0;
+    // 実出勤日の時刻を取得
+    if(r.orig&&d<=workRows.length){
+      const tr=workRows[d-1];
       const shv=tr.querySelector('.sh').value;
       const smv=tr.querySelector('.sm').value;
       const ehv=tr.querySelector('.eh').value;
       const emv=tr.querySelector('.em').value;
-      if(shv!==''&&smv!==''){rec.sh=parseInt(shv);rec.sm=parseInt(smv);}
-      if(ehv!==''&&emv!==''){rec.eh=parseInt(ehv);rec.em=parseInt(emv);}
-      // 振替受入情報
-      const origRec=lastRecs.find(r=>r.d===rec.day&&r.orig);
-      if(origRec){
-        rec.transferred=origRec.transferred||0;
-        if(rec.transferred>0) rec.type='出勤+振替';
-      }
+      if(shv!=='')sh=parseInt(shv);
+      if(smv!=='')sm=parseInt(smv);
+      if(ehv!=='')eh=parseInt(ehv);
+      if(emv!=='')em=parseInt(emv);
     }
+    const actual=r.orig?(sh*60+sm>0?(eh*60+em)-(sh*60+sm):r.worked):r.worked;
+    const overtime=actual>350?actual-350:0;
+    const kubun=r.orig?(r.transferred>0?'出勤+振替':'出勤'):'振替';
+    records.push({
+      day:d,sh,sm,eh,em,
+      actual:r.orig?actual:r.worked,
+      worked:r.worked,
+      overtime:r.orig?overtime:0,
+      transferred:r.transferred||0,
+      fee:r.orig?(r.transport==='車'?200:100):100,
+      transport:r.transport||'徒歩',
+      type:kubun
+    });
   });
 
   // 集計
