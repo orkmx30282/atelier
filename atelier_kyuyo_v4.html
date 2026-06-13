@@ -371,7 +371,7 @@ function restoreData(y, m){
 }
 
 function pt(s){if(!s)return null;const p=s.split(":");if(p.length!==2)return null;return parseInt(p[0])*60+parseInt(p[1]);}
-function hhmm(min){return`${Math.floor(min/60)}.${String(min%60).padStart(2,'0')}`;}
+function hhmm(min){return`${Math.floor(min/60)}:${String(min%60).padStart(2,'0')}`;}
 
 document.getElementById('calcBtn').addEventListener('click',()=>{
   const y=+sy.value,m=+sm.value;
@@ -656,40 +656,23 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
   formData.append('entry.1704257632', String(payload.month));
   formData.append('entry.1265874092', payload.detail);
 
-  // ② 勤務表フォーム（振替日を含む全レコードをJSON送信）
+  // ② 勤務表フォーム
   const KINMU_FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSdbH2FPa1NrGRaaWqjQIDnBBiPAR1Ua9B5eH2PpD853PIemZA/formResponse';
-  const kinmuData = {
-    name: payload.name,
-    year: payload.year,
-    month: payload.month,
-    records: payload.records,   // day は parseInt済み整数
-    holidays: payload.holidays,
-    summary: payload.summary
+  const kinmuData={
+    name:payload.name, year:payload.year, month:payload.month,
+    records:payload.records, holidays:payload.holidays, summary:payload.summary
   };
-
-  // デバッグ用：振替日が含まれているか確認（コンソールで確認可能）
-  const transferRecs = payload.records.filter(r=>r.type==='振替');
-  if(transferRecs.length>0){
-    console.log('振替日レコード:', JSON.stringify(transferRecs));
-  }
-
-  const kinmuFormData = new FormData();
+  const kinmuFormData=new FormData();
   kinmuFormData.append('entry.1100089953', JSON.stringify(kinmuData));
 
-  // 両フォームを並列送信し、両方完了後にメッセージ表示
   Promise.all([
-    fetch(FORM_URL, {method:'POST', mode:'no-cors', body:formData})
-      .then(()=>'給与明細OK').catch(()=>'給与明細OK'),  // no-corsは常にopaqueレスポンス
-    fetch(KINMU_FORM_URL, {method:'POST', mode:'no-cors', body:kinmuFormData})
-      .then(()=>'勤務表OK').catch(()=>'勤務表OK')
-  ]).then(results=>{
-    console.log('送信結果:', results.join(', '));
-    console.log('送信データ（勤務表）:', JSON.stringify(kinmuData).slice(0,500));
+    fetch(FORM_URL,{method:'POST',mode:'no-cors',body:formData}).then(()=>'OK').catch(()=>'OK'),
+    fetch(KINMU_FORM_URL,{method:'POST',mode:'no-cors',body:kinmuFormData}).then(()=>'OK').catch(()=>'OK')
+  ]).then(()=>{
     sendMsg.style.color='var(--success)';
-    sendMsg.textContent='✓ 送信しました！（給与明細＋勤務表）';
+    sendMsg.textContent='✓ 送信しました！';
     document.getElementById('sendBtn').disabled=false;
   }).catch(err=>{
-    console.error('送信エラー:', err);
     sendMsg.style.color='var(--accent)';
     sendMsg.textContent='⚠ 送信に問題が発生しました。再度お試しください。';
     document.getElementById('sendBtn').disabled=false;
