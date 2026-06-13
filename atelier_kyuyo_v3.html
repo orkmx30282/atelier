@@ -168,6 +168,7 @@ function isHoliday(y,m,d){
 }
 
 let currentY=null,currentM=null;
+let lastRecs=[];
 
 document.getElementById('genBtn').addEventListener('click',()=>{
   const y=+sy.value,m=+sm.value;
@@ -452,6 +453,7 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
   }
 
   recs.sort((a,b)=>a.d-b.d);
+  lastRecs=recs;
   let totMin=0,totTr=0,lines=[];
   lines.push(`【${y}年${m}月 給与明細】`);
   lines.push('');
@@ -603,8 +605,8 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     });
   });
 
-  // 振替情報を付加（recs配列から直接構築）
-  recs.forEach(r=>{
+  // 振替情報を付加（lastRecs配列から構築）
+  lastRecs.forEach(r=>{
     const rec=records.find(x=>x.day===r.d);
     if(rec){
       rec.transferred=r.transferred||0;
