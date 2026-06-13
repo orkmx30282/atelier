@@ -603,25 +603,26 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
     });
   });
 
-  // 振替情報を付加（recs配列から）
-  if(typeof recs!=='undefined'){
-    recs.forEach(r=>{
-      const rec=records.find(x=>x.day===r.d);
-      if(rec){
-        rec.transferred=r.transferred||0;
-        rec.worked=r.worked;
-        if(rec.transferred>0&&rec.overtime>0) rec.type='出勤+振替';
-        else if(rec.transferred>0) rec.type='出勤+振替';
-      }
-      if(!r.orig){
-        records.push({
-          day:r.d,sh:0,sm:0,eh:0,em:0,
-          actual:r.worked,worked:r.worked,overtime:0,
-          transferred:r.worked,fee:100,transport:'徒歩',type:'振替'
-        });
-      }
-    });
-  }
+  // 振替情報を付加（recs配列から直接構築）
+  recs.forEach(r=>{
+    const rec=records.find(x=>x.day===r.d);
+    if(rec){
+      rec.transferred=r.transferred||0;
+      rec.worked=r.worked;
+      if(rec.transferred>0&&rec.overtime>0) rec.type='出勤+振替';
+      else if(rec.transferred>0) rec.type='出勤+振替';
+    }
+    if(!r.orig){
+      // 振替日（新規）
+      const dt2=new Date(y,m-1,r.d);
+      records.push({
+        day:r.d,
+        sh:0,sm:0,eh:0,em:0,
+        actual:r.worked,worked:r.worked,overtime:0,
+        transferred:r.worked,fee:100,transport:'徒歩',type:'振替'
+      });
+    }
+  });
 
   // 集計
   const workDays=records.length;
