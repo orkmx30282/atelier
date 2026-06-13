@@ -600,11 +600,19 @@ document.getElementById('sendBtn').addEventListener('click',()=>{
       if(ehv!=='')eh=parseInt(ehv);
       if(emv!=='')em=parseInt(emv);
     }
+    let finalSh=sh,finalSm=sm,finalEh=eh,finalEm=em;
+    // 振替日は始業9:00固定、終業は9:00+勤務時間
+    if(!r.orig){
+      finalSh=9;finalSm=0;
+      const endMin=9*60+r.worked;
+      finalEh=Math.floor(endMin/60);
+      finalEm=endMin%60;
+    }
     const actual=r.orig?(sh*60+sm>0?(eh*60+em)-(sh*60+sm):r.worked):r.worked;
     const overtime=actual>350?actual-350:0;
     const kubun=r.orig?(r.transferred>0?'出勤+振替':'出勤'):'振替';
     records.push({
-      day:d,sh,sm,eh,em,
+      day:d,sh:finalSh,sm:finalSm,eh:finalEh,em:finalEm,
       actual:r.orig?actual:r.worked,
       worked:r.worked,
       overtime:r.orig?overtime:0,
