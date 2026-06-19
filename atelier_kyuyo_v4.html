@@ -374,6 +374,10 @@ function pt(s){if(!s)return null;const p=s.split(":");if(p.length!==2)return nul
 function hhmm(min){return`${Math.floor(min/60)}:${String(min%60).padStart(2,'0')}`;}
 
 document.getElementById('calcBtn').addEventListener('click',()=>{
+  // 再計算時は、前回の送信結果表示（「送信しました」等）が残らないようにクリアする
+  const sendMsgEl=document.getElementById('sendMsg');
+  if(sendMsgEl)sendMsgEl.textContent='';
+
   const y=+sy.value,m=+sm.value;
   const rows=document.getElementById('workBody').querySelectorAll('tr');
   const LIMIT=350,HOURLY=parseInt(document.getElementById('hourlyRate').value)||1200;
@@ -409,45 +413,72 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
   // 前月繰り越しを超過に加算
   ov+=carryMin;
 
-  if(ov>0){
-    recs.filter(r=>r.orig&&r.worked<LIMIT).forEach(r=>{
-      if(ov<=0)return;
-      const add=Math.min(LIMIT-r.worked,ov);
-      r.transferred=(r.transferred||0)+add;
-      r.worked+=add;ov-=add;
-    });
+  // 新規振替日（休みの日）の候補探索と割り当てを行う共通関数
+  const days=new Date(y,m,0).getDate();
+  function findCands(excludeDays){
+    let cands=[];
+    for(let d=1;d<=days;d++){
+      const dow=new Date(y,m-1,d).getDay();
+      const row=rows[d-1];
+      const isHol=row?row.querySelector('.hol').checked:false;
+      if([2,3,4,5].includes(dow)&&!excludeDays.has(d)&&!isHol)cands.push(d);
+    }
+    return cands;
+  }
+  function allocateNewDays(amount,excludeDays){
+    const cands=findCands(excludeDays);
+    const nD=Math.ceil(amount/LIMIT);
+    const base=Math.floor((amount/nD)/5)*5;
+    const ex5=Math.floor((amount-base*nD)/5);
+    let made=[];
+    for(let i=0;i<nD&&i<cands.length;i++){
+      const d=cands[i];
+      const dow=new Date(y,m-1,d).getDay();
+      const alloc=base+(i<ex5?5:0);
+      const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+      made.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
+    }
+    return made;
   }
 
-  // 新規勤務日への振替が必要な残り超過分
-  let newDayOv=ov; // 既存日で吸収できなかった分
   let carryNextMonth=0;
   let newRecs=[];
 
-  if(newDayOv>0){
-    // 1時間未満なら翌月繰り越し
-    if(newDayOv<60){
-      carryNextMonth=newDayOv;
-      newDayOv=0;
-    } else {
+  if(ov>0){
+    // ①まず既存の出勤日（実働<5:50で振替の余地がある日）の合計受け入れ可能量を計算する
+    const eligible=recs.filter(r=>r.orig&&r.worked<LIMIT);
+    const totalCapacity=eligible.reduce((s,r)=>s+(LIMIT-r.worked),0);
+    const leftover=Math.max(0,ov-totalCapacity);
+
+    if(leftover===0){
+      // 既存の出勤日だけで超過時間を完全に吸収できる→通常通り振り替える
+      let remain=ov;
+      eligible.forEach(r=>{
+        if(remain<=0)return;
+        const add=Math.min(LIMIT-r.worked,remain);
+        r.transferred=(r.transferred||0)+add;
+        r.worked+=add;remain-=add;
+      });
+    } else if(leftover<60){
+      // ②既存日に分散すると1時間未満の端数が残り、かつ他に振り替える出勤日もない
+      // →既存日には一切振り替えず、超過時間全体を新規の休み（振替日）へ割り当てる
       const wd=new Set(recs.map(r=>r.d));
-      const days=new Date(y,m,0).getDate();
-      let cands=[];
-      for(let d=1;d<=days;d++){
-        const dow=new Date(y,m-1,d).getDay();
-        const row=rows[d-1];
-        const isHol=row?row.querySelector('.hol').checked:false;
-        if([2,3,4,5].includes(dow)&&!wd.has(d)&&!isHol)cands.push(d);
+      newRecs=allocateNewDays(ov,wd);
+      if(newRecs.length===0){
+        // 振替候補日が無ければ翌月へ繰り越す（フォールバック）
+        carryNextMonth=ov;
+      } else {
+        recs.push(...newRecs);
       }
-      const nD=Math.ceil(newDayOv/LIMIT);
-      const base=Math.floor((newDayOv/nD)/5)*5;
-      const ex5=Math.floor((newDayOv-base*nD)/5);
-      for(let i=0;i<nD&&i<cands.length;i++){
-        const d=cands[i];
-        const dow=new Date(y,m-1,d).getDay();
-        const alloc=base+(i<ex5?5:0);
-        const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
-        newRecs.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
-      }
+    } else {
+      // 既存日を上限まで使い切り、残り（1時間以上）を新規振替日へ
+      eligible.forEach(r=>{
+        const add=LIMIT-r.worked;
+        r.transferred=(r.transferred||0)+add;
+        r.worked=LIMIT;
+      });
+      const wd=new Set(recs.map(r=>r.d));
+      newRecs=allocateNewDays(leftover,wd);
       recs.push(...newRecs);
     }
   }
