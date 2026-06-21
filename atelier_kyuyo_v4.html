@@ -413,7 +413,7 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
   // 前月繰り越しを超過に加算
   ov+=carryMin;
 
-  // 新規振替日（休みの日）の候補探索と割り当てを行う共通関数
+  // 新規振替日（休みの日）の候補探索を行う共通関数
   const days=new Date(y,m,0).getDate();
   function findCands(excludeDays){
     let cands=[];
@@ -425,24 +425,29 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
     }
     return cands;
   }
-  function allocateNewDays(amount,excludeDays){
-    const cands=findCands(excludeDays);
-    const nD=Math.ceil(amount/LIMIT);
-    const base=Math.floor((amount/nD)/5)*5;
-    const ex5=Math.floor((amount-base*nD)/5);
-    let made=[];
-    for(let i=0;i<nD&&i<cands.length;i++){
-      const d=cands[i];
-      const dow=new Date(y,m-1,d).getDay();
-      const alloc=base+(i<ex5?5:0);
-      const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
-      made.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
-    }
-    return made;
-  }
 
   let carryNextMonth=0;
   let newRecs=[];
+  const CARRY_THRESHOLD=120; // 2時間（分）。残りがこれ未満なら新規振替日を作らず翌月へ繰り越す
+
+  // 新規振替日への割り当て：1日ずつ上限(5:50)まで満杯にし、残りが2時間未満になったら
+  // そこで打ち切り、残った分は呼び出し元でcarryNextMonthに加える
+  function allocateNewDays(amount,excludeDays){
+    const cands=findCands(excludeDays);
+    let made=[];
+    let remain=amount;
+    let idx=0;
+    while(remain>=CARRY_THRESHOLD&&idx<cands.length){
+      const d=cands[idx];
+      const dow=new Date(y,m-1,d).getDay();
+      const alloc=Math.min(remain,LIMIT);
+      const mm=String(m).padStart(2,'0'),dd=String(d).padStart(2,'0');
+      made.push({date:`${mm}/${dd}`,d,dow,ds:DOW[dow],holiday:false,transport:'徒歩',worked:alloc,orig:false});
+      remain-=alloc;
+      idx++;
+    }
+    return {made,remain};
+  }
 
   if(ov>0){
     // ①まず既存の出勤日（実働<5:50で振替の余地がある日）の合計受け入れ可能量を計算する
@@ -459,27 +464,31 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
         r.transferred=(r.transferred||0)+add;
         r.worked+=add;remain-=add;
       });
-    } else if(leftover<60){
-      // ②既存日に分散すると1時間未満の端数が残り、かつ他に振り替える出勤日もない
-      // →既存日には一切振り替えず、超過時間全体を新規の休み（振替日）へ割り当てる
-      const wd=new Set(recs.map(r=>r.d));
-      newRecs=allocateNewDays(ov,wd);
-      if(newRecs.length===0){
-        // 振替候補日が無ければ翌月へ繰り越す（フォールバック）
+    } else if(leftover<CARRY_THRESHOLD){
+      if(ov<CARRY_THRESHOLD){
+        // 超過時間全体が2時間未満 → 新規振替日は作らず、翌月へ繰り越す
         carryNextMonth=ov;
       } else {
+        // ②既存日に分散すると2時間未満の端数が残り、かつ他に振り替える出勤日もない
+        // →既存日には一切振り替えず、超過時間全体を新規の休み（振替日）へ、1日ずつ満杯にしながら割り当てる
+        const wd=new Set(recs.map(r=>r.d));
+        const result=allocateNewDays(ov,wd);
+        newRecs=result.made;
         recs.push(...newRecs);
+        carryNextMonth+=result.remain; // 残り（2時間未満、または候補日不足分）は翌月へ
       }
     } else {
-      // 既存日を上限まで使い切り、残り（1時間以上）を新規振替日へ
+      // ③既存日を上限まで使い切り、残り（2時間以上）を新規振替日へ、1日ずつ満杯にしながら割り当てる
       eligible.forEach(r=>{
         const add=LIMIT-r.worked;
         r.transferred=(r.transferred||0)+add;
         r.worked=LIMIT;
       });
       const wd=new Set(recs.map(r=>r.d));
-      newRecs=allocateNewDays(leftover,wd);
+      const result=allocateNewDays(leftover,wd);
+      newRecs=result.made;
       recs.push(...newRecs);
+      carryNextMonth+=result.remain; // 残り（2時間未満、または候補日不足分）は翌月へ
     }
   }
 
@@ -548,7 +557,7 @@ document.getElementById('calcBtn').addEventListener('click',()=>{
   if(carryNextMonth>0){
     lines.push('');
     lines.push(`⚠ 翌月繰り越し: ${hhmm(carryNextMonth)}`);
-    lines.push(`  （新規振替時間が1時間未満のため翌月へ繰り越し）`);
+    lines.push(`  （新規振替時間が2時間未満のため翌月へ繰り越し）`);
     // 翌月繰り越し分をlocalStorageに保存
     const cnh=Math.floor(carryNextMonth/60);
     const cnm=carryNextMonth%60;
